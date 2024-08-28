@@ -37,18 +37,26 @@ class LiteralArray(
 
     override fun toString():String{
         val sb = StringBuilder()
-        sb.append("{ $size [ ")
+        sb.append("[")
+
+        var idx = 0
         content.forEach {
+
+            if(idx != 0) {
+                sb.append(", ")
+            }
+
             if(it is Literal.Str){
-                sb.append("str:\"${it.get(abc)}\", ")
+                sb.append("\"${it.get(abc)}\"")
             } else if(it is Literal.LiteralMethod) {
                 val method = abc.method(it.offset)
-                sb.append("${it::class.simpleName}:${method.clazz.name}.${method.name}, ")
+                sb.append("\"${method.clazz.name}.${method.name}\"")
             }else {
-                sb.append("${it}, ")
+                sb.append("${it}")
             }
+            idx += 1
         }
-        sb.append(" ]}")
+        sb.append("]")
         return sb.toString()
     }
 //    val size
@@ -100,12 +108,12 @@ class LiteralArray(
 
         sealed class LiteralDirect<T>(val value: T) : Literal(){
             override fun toString(): String {
-                return "${this::class.simpleName}:$value"
+                return "$value"
             }
         }
         sealed class LiteralRef(val offset: Int) : Literal(){
             override fun toString(): String {
-                return "${this::class.simpleName}:${offset.toString(16)}"
+                return "${offset.toString(16)}"
             }
         }
         sealed class LiteralMethod(offset: Int) :LiteralRef(offset){
@@ -113,7 +121,7 @@ class LiteralArray(
         }
         sealed class ArrRef(offset: Int) : LiteralRef(offset){
             override fun toString(): String {
-                return "${this::class.simpleName}:${offset.toString(16)}"
+                return "${offset.toString(16)}"
             }
         }
 
