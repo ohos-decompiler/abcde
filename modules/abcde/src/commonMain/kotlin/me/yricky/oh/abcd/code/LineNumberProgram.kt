@@ -25,24 +25,19 @@ class LineNumberProgram(override val abc: AbcBuf, override val offset: Int) :Abc
             off++
             when(currOpCode){
                 END_SEQUENCE -> {
-                    println("END_SEQUENCE")
                     end = true
                 }
                 ADVANCE_PC -> {
                     address += iterator.next()
-                    println("ADVANCE_PC$address")
                 }
                 ADVANCE_LINE -> {
                     line += iterator.next().uleb2sleb()
-                    println("ADVANCE_LINE${line}")
-
                 }
                 START_LOCAL -> {
                     val registerNum = abc.buf.readSLeb128(off)
                     off = registerNum.nextOffset
                     val nameIdx = iterator.next()
                     val typeIdx = iterator.next()
-                    println("START_LOCAL$registerNum:${abc.stringItem(nameIdx).value},${abc.stringItem(typeIdx).value}")
                 }
                 START_LOCAL_EXTENDED -> {
                     val registerNum = abc.buf.readSLeb128(off)
@@ -55,34 +50,28 @@ class LineNumberProgram(override val abc: AbcBuf, override val offset: Int) :Abc
                 END_LOCAL -> {
                     val registerNum = abc.buf.readSLeb128(off)
                     off = registerNum.nextOffset
-                    println("END_LOCAL$registerNum")
                 }
                 RESTART_LOCAL -> {
                     val registerNum = abc.buf.readSLeb128(off)
                     off = registerNum.nextOffset
-                    println("RESTART_LOCAL$registerNum")
                 }
                 SET_FILE -> {
                     val strIdx = iterator.next()
                     if (strIdx != 0){
                         fileString = abc.stringItem(strIdx).value
                     }
-                    println("SET_FILE")
                 }
                 SET_SOURCE_CODE -> {
                     val strIdx = iterator.next()
                     if (strIdx != 0){
                         sourceCodeString = abc.stringItem(strIdx).value
                     }
-                    println("SET_SOURCE_CODE")
                 }
                 SET_COLUMN -> {
                     column = iterator.next()
                     addressLineColumns.add(AddressLineColumn(address,line,column))
-                    println("SET_COLUMN")
                 }
                 else -> {
-                    println("$currOpCode")
                     if(currOpCode >= SPECIAL_OPCODE_BASE){
                         val adjOp = currOpCode.toUnsignedInt() - SPECIAL_OPCODE_BASE
                         address += adjOp / 15
