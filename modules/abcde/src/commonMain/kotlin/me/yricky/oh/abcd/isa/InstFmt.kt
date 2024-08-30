@@ -63,7 +63,11 @@ sealed class InstFmt(val bitSize:Int){
     class ImmI(val index:Int, bitSize:Int): InstFmt(bitSize)
     class ImmU(val index:Int, bitSize:Int): InstFmt(bitSize)
     class ImmF(val index:Int, bitSize:Int): InstFmt(bitSize)
-    class RegV(val index:Int, bitSize:Int): InstFmt(bitSize)
+    class RegV(val index:Int, bitSize:Int): InstFmt(bitSize) {
+        fun getRegister(item:Asm.AsmItem): Int {
+           return item.opUnits[index].toUnsignedInt()
+        }
+    }
     class SId( val index:Int, bitSize:Int): InstFmt(bitSize){
         fun getString(item:Asm.AsmItem):String {
             val value = item.opUnits[index].toUnsignedInt()
