@@ -10,30 +10,36 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import me.yricky.abcde.AppState
 import me.yricky.abcde.HapSession
+import me.yricky.abcde.content.AbcUniSearchState
+import me.yricky.abcde.content.AbcUniSearchStateView
 import me.yricky.abcde.ui.*
 import me.yricky.abcde.util.TreeModel
 import me.yricky.oh.abcd.AbcBuf
 import me.yricky.oh.common.TreeStruct
 import me.yricky.oh.abcd.cfm.ClassItem
 import me.yricky.oh.abcd.cfm.AbcClass
+import me.yricky.oh.abcd.cfm.exportName
 import me.yricky.oh.utils.Adler32
 
-class AbcView(val abc: AbcBuf,override val hap:HapView? = null):AttachHapPage() {
+class AbcView(val abc: AbcBuf,override val hap:HapSession):AttachHapPage() {
 
-    override val navString: String = "${hap?.navString ?: ""}${asNavString("ABC", abc.tag)}"
-    override val name: String = if(hap == null){
+    override val navString: String = "${hap.hapView?.navString ?: ""}${asNavString("ABC", abc.tag)}"
+    override val name: String = if(hap.hapView == null){
         abc.tag
-    } else "${hap.name}/${abc.tag}"
+    } else "${hap.hapView.name}/${abc.tag}"
+
+    private val tabState = mutableIntStateOf(0)
 
     @Composable
     override fun Page(modifier: Modifier, hapSession: HapSession, appState: AppState) {
         val scope = rememberCoroutineScope()
-        VerticalTabAndContent(modifier, listOf(composeSelectContent{ _: Boolean ->
+        VerticalTabAndContent(modifier, tabState, listOfNotNull(composeSelectContent{ _: Boolean ->
             Image(Icons.clazz(), null, Modifier.fillMaxSize(), colorFilter = grayColorFilter)
         } to composeContent{
             Column(Modifier.fillMaxSize().padding(end = 4.dp)) {
@@ -67,7 +73,7 @@ class AbcView(val abc: AbcBuf,override val hap:HapView? = null):AttachHapPage() 
                         if (it is TreeStruct.LeafNode) {
                             val clazz = it.value
                             if(clazz is AbcClass){
-                                hapSession.openClass(hap,clazz)
+                                hapSession.openClass(clazz)
                             }
                         } else if(it is TreeStruct.TreeNode){
                             toggleExpand(it)
@@ -76,12 +82,26 @@ class AbcView(val abc: AbcBuf,override val hap:HapView? = null):AttachHapPage() 
                     when (val node = it) {
                         is TreeStruct.LeafNode<ClassItem> -> {
                             Image(node.value.icon(), null, modifier = Modifier.padding(end = 2.dp).size(20.dp))
+                            val txt = remember(node.value) {
+                                when(val clz = node.value){
+                                    is AbcClass -> {
+                                        val exportName = clz.exportName()
+                                        if(exportName == null || exportName == it.pathSeg || exportName == "default"){
+                                            it.pathSeg
+                                        } else "${it.pathSeg} ($exportName)"
+                                    }
+                                    else -> {
+                                        it.pathSeg
+                                    }
+                                }
+                            }
+                            Text(txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         is TreeStruct.TreeNode<ClassItem> -> {
                             Image(Icons.pkg(), null, modifier = Modifier.padding(end = 2.dp).size(20.dp))
+                            Text(it.pathSeg, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
-                    Text(it.pathSeg, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }, composeSelectContent{
@@ -110,9 +130,15 @@ class AbcView(val abc: AbcBuf,override val hap:HapView? = null):AttachHapPage() 
                     scope.launch(Dispatchers.Default) { realCkSum = realCheckSum.value }
                 })
             }
-        }
+        }, composeSelectContent {
+                Image(Icons.search(), null, Modifier.fillMaxSize(), colorFilter = grayColorFilter)
+            } to composeContent {
+                AbcUniSearchStateView(hapSession, this, searchState)
+            }
         ))
     }
+
+    val searchState = AbcUniSearchState(abc, CoroutineScope(Dispatchers.Default))
 
     private val classMap get()= abc.classes
     var filter by mutableStateOf("")
@@ -136,7 +162,10 @@ class AbcView(val abc: AbcBuf,override val hap:HapView? = null):AttachHapPage() 
         if(!isFilterMode()){
             classList = treeStruct.buildFlattenList()
         } else {
-            classList = treeStruct.buildFlattenList{ it.pathSeg.contains(filter) }
+            classList = treeStruct.buildFlattenList{
+                it.pathSeg.contains(filter) ||
+                        ((it as? TreeStruct.LeafNode<ClassItem>)?.value as? AbcClass)?.exportName()?.contains(filter) == true
+            }
         }
         classCount = if (isFilterMode()) classList.count { it.second is TreeStruct.LeafNode } else classMap.size
     }

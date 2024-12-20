@@ -4,6 +4,7 @@ import me.yricky.oh.abcd.AbcBufOffset
 import me.yricky.oh.abcd.AbcBuf
 import me.yricky.oh.abcd.code.Code
 import me.yricky.oh.abcd.code.DebugInfo
+import me.yricky.oh.abcd.literal.LiteralArray
 import me.yricky.oh.common.DataAndNextOff
 import me.yricky.oh.common.nextOffset
 import me.yricky.oh.common.value
@@ -71,6 +72,103 @@ class AbcMethod(abc: AbcBuf, offset: Int) :MethodItem(abc, offset){
     }
 
     val nextOff get() = _data.nextOffset
+
+    data class ScopeInfo(
+        val origin:IntRange,
+        val layers:List<ScopeLayer>,
+        val tag:Char
+    ){
+
+        override fun toString(): String {
+            return "$layers ${TAN_NAME_MAP[tag]}"
+        }
+        companion object{
+            const val TAG_CLASS = '~'
+            const val TAG_INSTANCE = '>'
+            const val TAG_STATIC = '<'
+            const val TAG_CONSTRUCTOR = '='
+            const val TAG_NORMAL = '*'
+            const val TAG_NS_OR_MOD = '&'
+            const val TAG_ENUM = '%'
+            val TAN_NAME_MAP = mapOf(
+                TAG_CLASS to "class",
+                TAG_INSTANCE to "instance",
+                TAG_STATIC to "static",
+                TAG_CONSTRUCTOR to "constructor",
+                TAG_NORMAL to "function",
+                TAG_NS_OR_MOD to "namespace",
+                TAG_ENUM to "enum"
+            )
+
+            const val ANONYMOUS_NAME = "[ANONYMOUS]"
+
+            val scopeRegex = Regex("(#([~><=*&%](@[0-9a-fA-F]+)?(\\^[0-9a-fA-F]+)?)*[~><=*&%]#).*")
+
+            fun parseFromMethod(method:AbcMethod):ScopeInfo?{
+                return scopeRegex.find(method.name)?.let {
+                    it.groups[1]?.takeIf { !it.range.isEmpty() }
+                }?.let { res ->
+                    val first = res.range.first + 1
+                    val last = res.range.last - 1
+                    val origin = res.range
+
+                    if (first == last){
+                        ScopeInfo(origin,layers = emptyList(),method.name[last])
+                    } else if (first < last){
+                        val layerStr = method.name.substring(first,last)
+                        val layers = layerStr.map { if(TAN_NAME_MAP.containsKey(it)) " $it" else "$it" }
+                            .reduce{ s1,s2 -> "$s1$s2"}
+                            .split(' ')
+                            .asSequence()
+                            .filter { it.isNotEmpty() }
+                            .map {
+                                val tag = it[0]
+                                val remaining = it.removePrefix("$tag")
+                                if(remaining.firstOrNull() == '^'){
+                                    ScopeLayer(tag, "",remaining.removePrefix("^").toIntOrNull(16))
+                                } else if (remaining.firstOrNull() == '@'){
+                                    if (remaining.contains('^')){
+                                        val sp = remaining.split('^')
+                                        val nameIndex = sp[0].removePrefix("@").toInt(16)
+                                        val layerName = method.clazz.getClass()?.scopeNames?.content?.getOrNull(nameIndex)
+                                            ?.let { it as? LiteralArray.Literal.Str }?.get(method.abc)
+                                        ScopeLayer(tag, layerName ?: "null@$nameIndex" ,sp[1].toIntOrNull(16))
+                                    } else {
+                                        val nameIndex = remaining.removePrefix("@").toInt(16)
+                                        val layerName = method.clazz.getClass()?.scopeNames?.content?.getOrNull(nameIndex)
+                                            ?.let { it as? LiteralArray.Literal.Str }?.get(method.abc)
+                                        ScopeLayer(tag, layerName ?: "null@$nameIndex" ,null)
+                                    }
+                                } else if (remaining.contains('^')){
+                                    val sp = remaining.split('^')
+                                    ScopeLayer(tag,sp[0],sp[1].toIntOrNull(16))
+                                } else ScopeLayer(tag, remaining.ifEmpty { ANONYMOUS_NAME },null)
+                            }
+                            .toList()
+                        ScopeInfo(origin,layers,method.name[last])
+                    } else null
+                }
+            }
+
+            fun decorateMethodName(name:String,tag:Char):String{
+                return when(tag){
+                    TAG_INSTANCE -> "${name.ifEmpty { ANONYMOUS_NAME }}()"
+                    TAG_CONSTRUCTOR -> "constructor()"
+                    else -> "${TAN_NAME_MAP[tag]} ${name.ifEmpty { ANONYMOUS_NAME }}"
+                }
+            }
+        }
+    }
+    data class ScopeLayer(
+        val tag:Char,
+        val layerName:String,
+        val uglyIndex:Int?
+    ){
+        override fun toString(): String {
+            val mName = "$layerName${uglyIndex?.let { "^$it" } ?: ""}"
+            return ScopeInfo.decorateMethodName(mName,tag)
+        }
+    }
 }
 
 sealed class MethodTag{

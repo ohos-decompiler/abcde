@@ -132,7 +132,7 @@ class ModuleLiteralArray(
             mla.abc.stringItem(exportNameOffset).value
         } else null
         override fun toString(): String {
-            return "export $localName as $exportName"
+            return "export { ${if(localName == exportName) localName else "$localName as $exportName"} }"
         }
         companion object{
             fun parseFrom(mla: ModuleLiteralArray,offset: Int):LocalExport{
@@ -163,7 +163,7 @@ class ModuleLiteralArray(
             mla.moduleRequests[moduleRequestIdx.toInt()]
         } else null
         override fun toString(): String {
-            return "export { ${if(exportName == importName) exportName else "$importName as $exportName" } from \"$moduleRequest\""
+            return "export { ${if(exportName == importName) exportName else "$importName as $exportName" } } from \"$moduleRequest\""
         }
         companion object{
             fun parseFrom(mla: ModuleLiteralArray,offset: Int):IndirectExport{

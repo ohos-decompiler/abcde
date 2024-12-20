@@ -17,7 +17,7 @@ expect fun loadInnerAsmMap():AsmMap
  */
 class Asm(
     val code: Code,
-    private val asmMap:AsmMap = innerAsmMap
+    val asmMap:AsmMap = innerAsmMap
 ) {
     companion object{
         val innerAsmMap by lazy { loadInnerAsmMap() }
@@ -34,10 +34,10 @@ class Asm(
                 off += 1
                 val inst = it[subOpCode] ?: throw IllegalStateException("No this subOpCode:${subOpCode.toString(16)} in opCode:${opCode.toString(16)}")
                 off += inst.argSize()
-                li.add(AsmItem(this,inst,initOff,off))
+                li.add(AsmItem(this,inst,initOff,li.size))
             } ?: asmMap.insMap[opCode]?.let { ins ->
                 off += ins.argSize()
-                li.add(AsmItem(this,ins, initOff,off))
+                li.add(AsmItem(this,ins, initOff,li.size))
             } ?: throw IllegalStateException("No this opCode:${opCode.toString(16)},off:${off - 1}")
         }
         li
@@ -54,11 +54,14 @@ class Asm(
         val asm:Asm,
         val ins:Inst,
         val codeOffset:Int,
-        val nextOffset:Int
+        val index:Int
     ){
         val tryBlocks:List<TryBlock> get() = asm.code.tryBlocks.filter {
             codeOffset in (it.startPc until (it.startPc+ it.length))
         }
+
+        val next:AsmItem? get() = asm.list.getOrNull(index + 1)
+        val nextOffset:Int get() = next?.codeOffset ?: asm.code.codeSize
 
         /**
          * 将指令的原始二进制数据拆分为一个个语义化单元，并以List<Number>表示
@@ -159,6 +162,35 @@ val Asm.AsmItem.calledStrings:Sequence<String> get() = sequence {
                     yield(it.get(asm.code.abc))
                 } else if(it is LiteralArray.Literal.ArrayStr){
                     yieldAll(it.get(asm.code.abc))
+                }
+            }
+        }
+    }
+}
+
+
+val Asm.AsmItem.calledResources:Sequence<Int> get() = sequence {
+    ins.format.forEachIndexed { index, instFmt ->
+        if(instFmt is InstFmt.LId){
+            val value = opUnits[index].toUnsignedInt()
+            val literalArray = asm.code.abc.literalArray(asm.code.method.region.mslIndex[value])
+            if(literalArray.content.size % 2 == 0){
+                val objKv = mutableMapOf<String,LiteralArray.Literal>()
+                val iter = literalArray.content.iterator()
+                while (iter.hasNext()){
+                    val next = iter.next()
+                    if(next is LiteralArray.Literal.Str){
+                        objKv[next.get(asm.code.abc)] = iter.next()
+                    } else break
+                }
+                if(
+                    objKv["id"] is LiteralArray.Literal.I32 &&
+                    objKv["type"] is LiteralArray.Literal.I32 &&
+                    objKv["params"] != null &&
+                    objKv["bundleName"] is LiteralArray.Literal.Str &&
+                    objKv["moduleName"] is LiteralArray.Literal.Str
+                ){
+                    yield((objKv["id"] as LiteralArray.Literal.I32).value)
                 }
             }
         }

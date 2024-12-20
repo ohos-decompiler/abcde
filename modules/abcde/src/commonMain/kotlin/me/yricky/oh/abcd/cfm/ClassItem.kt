@@ -2,6 +2,7 @@ package me.yricky.oh.abcd.cfm
 
 import me.yricky.oh.abcd.AbcBufOffset
 import me.yricky.oh.abcd.AbcBuf
+import me.yricky.oh.abcd.literal.LiteralArray
 import me.yricky.oh.abcd.literal.ModuleLiteralArray
 import me.yricky.oh.common.DataAndNextOff
 import me.yricky.oh.common.nextOffset
@@ -20,7 +21,12 @@ sealed class ClassItem(
 }
 
 class ForeignClass(abc: AbcBuf, offset: Int) : ClassItem(abc, offset)
-class AbcClass(abc: AbcBuf, offset: Int) : ClassItem(abc, offset) {
+
+class AbcClass(abc: AbcBuf, offset: Int) : ClassItem(abc, offset){
+    companion object{
+        const val ENTRY_FUNC_NAME = "func_main_0"
+    }
+
     val region by lazy { abc.regions.first { it.contains(offset) } }
 
     private val superClassOff = abc.buf.getInt(nameItem.nextOffset)
@@ -75,6 +81,11 @@ class AbcClass(abc: AbcBuf, offset: Int) : ClassItem(abc, offset) {
             ?.takeIf { abc.isValidOffset(it) }
             ?.let { ModuleLiteralArray(abc, it) }
     }
+    val scopeNames:LiteralArray? by lazy {
+        fields.firstOrNull { it.isScopeNames() }?.getIntValue()
+            ?.takeIf { abc.isValidOffset(it) }
+            ?.let { LiteralArray(abc,it) }
+    }
 
     private val _methods by lazy {
         val list = ArrayList<AbcMethod>(numMethods)
@@ -100,9 +111,17 @@ class AbcClass(abc: AbcBuf, offset: Int) : ClassItem(abc, offset) {
 
 }
 
-sealed class ClassTag {
-    sealed class AnnoTag(abc: AbcBuf, annoOffset: Int) : ClassTag() {
-        val anno: AbcAnnotation = AbcAnnotation(abc, annoOffset)
+fun AbcClass.entryFunction() = methods.firstOrNull { it.name == AbcClass.ENTRY_FUNC_NAME }
+
+fun AbcClass.exportName():String? = moduleInfo?.let { mi ->
+    if(mi.localExports.size == 1 && mi.indirectExports.isEmpty()){
+        mi.localExports.first().exportName
+    } else null
+}
+
+sealed class ClassTag{
+    sealed class AnnoTag(abc: AbcBuf, annoOffset:Int):ClassTag(){
+        val anno:AbcAnnotation = AbcAnnotation(abc,annoOffset)
 
         override fun toString(): String {
             return "Annotation(${anno.clazz.name}[${anno.elements}])"

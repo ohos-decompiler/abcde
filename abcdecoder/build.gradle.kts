@@ -1,5 +1,4 @@
 import com.google.gson.GsonBuilder
-import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
     kotlin("multiplatform")
@@ -12,9 +11,8 @@ group = "me.yricky"
 version = rootProject.version
 
 repositories {
-    maven("https://maven.aliyun.com/repository/central")
     maven("https://maven.aliyun.com/repository/public/")
-    maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
+    mavenCentral()
     google()
 }
 
@@ -73,6 +71,9 @@ kotlin {
 }
 
 tasks{
+    withType<org.gradle.jvm.tasks.Jar>() {
+        exclude("META-INF/*.RSA", "META-INF/*.SF", "META-INF/*.DSA")
+    }
     withType(ProcessResources::class){
         outputs.upToDateWhen { false }
         doLast {

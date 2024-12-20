@@ -1,8 +1,15 @@
 package me.yricky.abcde.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
@@ -11,8 +18,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.platform.Font
-import me.yricky.abcde.desktop.DesktopUtils
+import androidx.compose.ui.unit.dp
+import me.yricky.abcde.LocalAppCommonConfig
 import me.yricky.oh.abcd.cfm.*
+import me.yricky.oh.abcd.literal.LiteralArray
 
 @Composable
 fun AbcField.icon():Painter{
@@ -116,6 +125,13 @@ object Icons{
         painterResource("ic/package/package_dark.svg")
     } else {
         painterResource("ic/package/package.svg")
+    }
+
+    @Composable
+    fun xml() = if (isDarkTheme()) {
+        painterResource("ic/xml/xml_dark.svg")
+    } else {
+        painterResource("ic/xml/xml.svg")
     }
 
     @Composable
@@ -257,13 +273,30 @@ object Icons{
     } else {
         painterResource("ic/classAbstract/classAbstract.svg")
     }
+
+    @Composable
+    fun showAsTree() = if (isDarkTheme()) {
+        painterResource("ic/showAsTree/showAsTree_dark.svg")
+    } else {
+        painterResource("ic/showAsTree/showAsTree.svg")
+    }
+
+    @Composable
+    fun key() = if (isDarkTheme()) {
+        painterResource("ic/greyKey/greyKey_dark.svg")
+    } else {
+        painterResource("ic/greyKey/greyKey.svg")
+    }
 }
 
 @Composable
 fun isDarkTheme():Boolean{
-    val cfg by DesktopUtils.AppConfig.flow.collectAsState()
-    val darkTheme by remember { derivedStateOf { cfg.darkTheme } }
-    return darkTheme ?: isSystemInDarkTheme()
+    return LocalAppCommonConfig.current.darkTheme ?: isSystemInDarkTheme()
+}
+
+@Composable
+fun experimentalFeatures():Boolean{
+    return LocalAppCommonConfig.current.futureFeature
 }
 
 
@@ -271,79 +304,6 @@ val grayColorFilter = ColorFilter.colorMatrix(ColorMatrix().apply {
     setToSaturation(0f)
 })
 
-fun AbcField.defineStr():String = run {
-    val sb = StringBuilder()
-    if(accessFlags.isPublic){
-        sb.append("public ")
-    }
-    if(accessFlags.isPrivate){
-        sb.append("private ")
-    }
-    if(accessFlags.isProtected){
-        sb.append("protected ")
-    }
-    if(accessFlags.isStatic){
-        sb.append("static ")
-    }
-    if(accessFlags.isFinal){
-        sb.append("final ")
-    }
-    if(accessFlags.isVolatile){
-        sb.append("volatile ")
-    }
-
-    sb.append("${type.name} $name")
-    if(isModuleRecordIdx()){
-        val moduleRecordOffset = getIntValue()
-        sb.append("= 0x${moduleRecordOffset?.toString(16)}")
-    }
-    sb.toString()
-}
-
-fun MethodItem.defineStr(showClass:Boolean = false):String = run {
-    val sb = StringBuilder()
-//    if(indexData.isPublic){
-//        sb.append("public ")
-//    }
-//    if(indexData.isPrivate){
-//        sb.append("private ")
-//    }
-//    if(indexData.isProtected){
-//        sb.append("protected ")
-//    }
-//    if(indexData.isStatic){
-//        sb.append("static ")
-//    }
-//    if(indexData.isAbstract){
-//        sb.append("abstract ")
-//    }
-//    if(indexData.isFinal){
-//        sb.append("final ")
-//    }
-//    if(accessFlags.isNative){
-//        sb.append("native ")
-//    }
-//    if(indexData.isSynchronized){
-//        sb.append("synchronized ")
-//    }
-//    sb.append("${proto?.shortyReturn ?: ""} ")
-    if(showClass){
-        sb.append("${clazz.name}.")
-    }
-    sb.append(name)
-    if(this is AbcMethod && codeItem != null){
-        val code = codeItem!!
-        val argCount = code.numArgs - 3
-        if(argCount >= 0){
-            sb.append("(FunctionObject, NewTarget, this")
-            repeat(argCount){
-                sb.append(", arg$it")
-            }
-            sb.append(')')
-        }
-    }
-    sb.toString()
-}
 
 @Composable
 fun ClassItem.icon():Painter{
@@ -358,4 +318,16 @@ fun ClassItem.icon():Painter{
     } else {
         Icons.classAbstract()
     }
+}
+
+@Composable
+fun TitleCard(
+    modifier: Modifier = Modifier,
+    title:String,
+    content:@Composable ColumnScope.()->Unit
+){
+    Card(modifier) { Column(modifier = Modifier.padding(12.dp).fillMaxWidth()) {
+        Text(title, style = MaterialTheme.typography.titleMedium)
+        content()
+    }}
 }

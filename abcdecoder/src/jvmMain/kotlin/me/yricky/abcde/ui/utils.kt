@@ -2,6 +2,7 @@ package me.yricky.abcde.ui
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.*
+import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.gestures.FlingBehavior
 import androidx.compose.foundation.gestures.ScrollableDefaults
 import androidx.compose.foundation.layout.*
@@ -12,7 +13,13 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draganddrop.DragAndDropEvent
+import androidx.compose.ui.draganddrop.DragAndDropTarget
+import androidx.compose.ui.draganddrop.DragData
+import androidx.compose.ui.draganddrop.dragData
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
@@ -25,19 +32,26 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import me.yricky.abcde.AppState
 import me.yricky.abcde.util.SelectedFile
+import me.yricky.oh.abcd.cfm.*
+import me.yricky.oh.abcd.literal.LiteralArray
 import java.io.File
 import java.net.URI
 
-@OptIn(ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun AbcdeFrame(appState: AppState, content:@Composable ()->Unit) {
-    var isDragging by remember { mutableStateOf<List<SelectedFile>?>(null) }
-    Surface {
-        Box(Modifier.fillMaxSize().onExternalDrag(
-            onDragStart = { state ->
-                val dragData = state.dragData
+    var draggingData by remember { mutableStateOf<List<SelectedFile>?>(null) }
+    Surface(Modifier.dragAndDropTarget(
+        shouldStartDragAndDrop = {
+            it.dragData() is DragData.FilesList
+        },
+        object :DragAndDropTarget{
+            override fun onDrop(event: DragAndDropEvent): Boolean {
+                println("onDrop")
+
+                val dragData = event.dragData()
                 if (dragData is DragData.FilesList) {
-                    isDragging = runCatching {
+                    draggingData = runCatching {
                         dragData.readFiles().mapNotNull { s ->
                             SelectedFile.fromOrNull(File(URI(s)))
                                 ?.takeIf { it.valid() }
@@ -46,36 +60,52 @@ fun AbcdeFrame(appState: AppState, content:@Composable ()->Unit) {
                         it.printStackTrace()
                     }.getOrNull()
                 }
-            },
-            onDragExit = {
-                isDragging = null
-            },
-            onDrag = {},
-            onDrop = { state ->
-                val dragData = state.dragData
-                if (dragData is DragData.FilesList) {
-                    isDragging = runCatching {
-                        dragData.readFiles().mapNotNull { s ->
-                            SelectedFile.fromOrNull(File(URI(s)))
-                                ?.takeIf { it.valid() }
-                        }
-                    }.onFailure {
-                        it.printStackTrace()
-                    }.getOrNull()
-                }
-                isDragging?.forEach{
+                draggingData?.forEach{
                     appState.open(it)
                 }
-                isDragging = null
+                draggingData = null
+                return true
             }
-        )){
-            val blur by animateDpAsState(if(isDragging != null) 16.dp else 0.dp)
+
+            override fun onEntered(event: DragAndDropEvent) {
+                println("onEntered")
+            }
+
+            override fun onExited(event: DragAndDropEvent) {
+                println("onExited")
+                draggingData = null
+            }
+
+            override fun onEnded(event: DragAndDropEvent) {
+                println("onEnded")
+                draggingData = null
+            }
+
+            override fun onStarted(event: DragAndDropEvent) {
+                println("onStarted")
+                val dragData = event.dragData()
+                if (dragData is DragData.FilesList) {
+                    draggingData = runCatching {
+                        dragData.readFiles().mapNotNull { s ->
+                            SelectedFile.fromOrNull(File(URI(s)))
+                                ?.takeIf { it.valid() }
+                        }
+                    }.onFailure {
+                        it.printStackTrace()
+                    }.getOrNull()
+                }
+            }
+        }
+    )) {
+        Box(
+            Modifier.fillMaxSize()){
+            val blur by animateDpAsState(if(draggingData != null) 16.dp else 0.dp)
             Box(
                 Modifier.let { if(blur != 0.dp) it.blur(blur) else it }
             ){
                 content()
             }
-            isDragging?.let {
+            draggingData?.let {
                 Box(Modifier.fillMaxSize()
                     .alpha(0.5f)
                     .background(MaterialTheme.colorScheme.secondaryContainer)
@@ -173,9 +203,10 @@ fun Modifier.requestFocusWhenEnter(focus: FocusRequester) = focusRequester(focus
 @Composable
 fun VerticalTabAndContent(
     modifier: Modifier,
+    tabState:MutableState<Int>,
     tabAndContent:List<Pair<@Composable (Boolean)->Unit,@Composable ()->Unit>>
 ){
-    var index by remember { mutableIntStateOf(0) }
+    var index by tabState
     Row(modifier.background(MaterialTheme.colorScheme.surface)) {
         Column(Modifier.fillMaxHeight().width(36.dp).padding(start = 4.dp, end = 4.dp, top = 4.dp)) {
             tabAndContent.forEachIndexed { i,it ->
@@ -198,3 +229,109 @@ fun VerticalTabAndContent(
 
 fun composeSelectContent(content:@Composable (Boolean)->Unit) = content
 fun composeContent(content:@Composable ()->Unit) = content
+
+fun Long.toByteSizeFormat():String = kotlin.run {
+    if(this > 1048576){
+        "${String.format("%.2f",this/1048576.0)}MiB"
+    } else if(this > 1024){
+        "${String.format("%.2f",this/1024.0)}KiB"
+    } else {
+        "${this}B"
+    }
+}
+
+fun String.short(maxLen:Int = 35) = if (length > maxLen) "...${
+    substring(
+        length - maxLen + 3,
+        length
+    )
+}" else this
+
+fun AbcField.defineStr():String = run {
+    val sb = StringBuilder()
+    if(accessFlags.isPublic){
+        sb.append("public ")
+    }
+    if(accessFlags.isPrivate){
+        sb.append("private ")
+    }
+    if(accessFlags.isProtected){
+        sb.append("protected ")
+    }
+    if(accessFlags.isStatic){
+        sb.append("static ")
+    }
+    if(accessFlags.isFinal){
+        sb.append("final ")
+    }
+    if(accessFlags.isVolatile){
+        sb.append("volatile ")
+    }
+
+    sb.append("${type.name} $name")
+    if(isModuleRecordIdx()){
+        val moduleRecordOffset = getIntValue()
+        sb.append("= 0x${moduleRecordOffset?.toString(16)}")
+    } else if(isScopeNames()){
+        getIntValue()?.let {
+            LiteralArray(abc,it)
+        }?.let {
+            sb.append("= $it")
+        }
+    } else {
+        val moduleRecordOffset = getIntValue()
+        sb.append("= 0x${moduleRecordOffset?.toString(16)}")
+    }
+    sb.toString()
+}
+
+fun MethodItem.defineStr(showClass:Boolean = false):String = run {
+    val sb = StringBuilder()
+//    if(indexData.isPublic){
+//        sb.append("public ")
+//    }
+//    if(indexData.isPrivate){
+//        sb.append("private ")
+//    }
+//    if(indexData.isProtected){
+//        sb.append("protected ")
+//    }
+//    if(indexData.isStatic){
+//        sb.append("static ")
+//    }
+//    if(indexData.isAbstract){
+//        sb.append("abstract ")
+//    }
+//    if(indexData.isFinal){
+//        sb.append("final ")
+//    }
+//    if(accessFlags.isNative){
+//        sb.append("native ")
+//    }
+//    if(indexData.isSynchronized){
+//        sb.append("synchronized ")
+//    }
+//    sb.append("${proto?.shortyReturn ?: ""} ")
+    if(showClass){
+        sb.append("${clazz.name}.")
+    }
+    sb.append(name)
+    sb.append(argsStr())
+    sb.toString()
+}
+
+fun MethodItem.argsStr():String{
+    val sb = StringBuilder()
+    if(this is AbcMethod && codeItem != null){
+        val code = codeItem!!
+        val argCount = code.numArgs - 3
+        if(argCount >= 0){
+            sb.append("(FunctionObject, NewTarget, this")
+            repeat(argCount){
+                sb.append(", arg$it")
+            }
+            sb.append(')')
+        }
+    }
+    return sb.toString()
+}

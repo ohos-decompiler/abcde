@@ -22,9 +22,10 @@ fun <T> TreeItemList(
     modifier: Modifier,
     list: List<Pair<Int, TreeStruct.Node<T>>>,
     expand: (TreeStruct.TreeNode<T>) -> Boolean,
-    onClick: (TreeStruct.Node<T>) -> Unit = {},
+    onClick: ((TreeStruct.Node<T>) -> Unit)? = null,
     applyContent: LazyListScope.(LazyListScope.() -> Unit) -> Unit = { it() },
-    content: @Composable RowScope.(TreeStruct.Node<T>) -> Unit = {}
+    withTreeHeader: Boolean = true,
+    content: @Composable RowScope.(TreeStruct.Node<T>) -> Unit
 ) {
     val state = rememberLazyListState()
     Box(modifier){
@@ -37,7 +38,9 @@ fun <T> TreeItemList(
                 items(list, key = { "${it.first}/${it.second.path}${it.second.javaClass}" }, contentType = { 1 }) { item ->
                     Row(
                         Modifier.fillMaxWidth()
-                            .clickable { onClick(item.second) }.drawBehind {
+                            .let { m ->
+                                onClick?.let { m.clickable{ it(item.second) } } ?: m
+                            }.drawBehind {
                                 repeat(item.first){
                                     drawRect(
                                         Color.hsv(((it * 40)%360).toFloat() ,1f,0.5f),
@@ -45,7 +48,7 @@ fun <T> TreeItemList(
                                         size = Size(density.density * 2,size.height)
                                     )
                                 }
-                            }.padding(start = (12*item.first).dp),
+                            }.padding(start = (12*item.first).dp, end = LocalScrollbarStyle.current.thickness),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         when (val node = item.second) {
@@ -67,63 +70,52 @@ fun <T> TreeItemList(
             }
         }
 
-        val firstItemIndex by remember { derivedStateOf { state.firstVisibleItemIndex } }
-        val headerItems = remember { mutableStateListOf<Pair<Int, TreeStruct.Node<T>>>() }
-        LaunchedEffect(firstItemIndex,list){
-            headerItems.clear()
-//            var item = list.getOrNull(firstItemIndex + headerItems.size)
-//            while (item?.second is TreeStruct.Node && item.first >= headerItems.size){
-//                val headerItem = (0..(firstItemIndex + headerItems.size)).reversed().asSequence()
-//                    .map { list.getOrNull(it) }
-//                    .filter { it?.second is TreeStruct.TreeNode &&
-//                            expand(it.second as TreeStruct.TreeNode<T>) &&
-//                            ((item?.second?.isMyParent(it.second) == true) || item?.second == it.second)
-//                    }
-//                    .firstOrNull { it?.first == headerItems.size }
-//                if(headerItem != null){
-//                    headerItems.add(headerItem)
-//                    item = list.getOrNull(firstItemIndex + headerItems.size)
-//                } else break
-//            }
-            var indent = 0
-            var item = list.getOrNull(firstItemIndex)
-            while (item != null && item.first >= indent){
-                indent++
-                item = list.getOrNull(firstItemIndex + indent)
-            }
-            indent = (indent - 1).coerceAtLeast(0)
-            var node = list.getOrNull(firstItemIndex + indent)
-            if(node != null){
-                while(node!!.first != 0){
-                    node = Pair(node.first - 1, node.second.parent!!)
-                    headerItems.add(0,node)
+        if (withTreeHeader){
+            val firstItemIndex by remember { derivedStateOf { state.firstVisibleItemIndex } }
+            val headerItems = remember { mutableStateListOf<Pair<Int, TreeStruct.Node<T>>>() }
+            LaunchedEffect(firstItemIndex,list){
+                headerItems.clear()
+                var indent = 0
+                var item = list.getOrNull(firstItemIndex)
+                while (item != null && item.first >= indent){
+                    indent++
+                    item = list.getOrNull(firstItemIndex + indent)
                 }
-                while (headerItems.size > indent){
-                    headerItems.removeLast()
+                indent = (indent - 1).coerceAtLeast(0)
+                var node = list.getOrNull(firstItemIndex + indent)
+                if(node != null){
+                    while(node!!.first != 0){
+                        node = Pair(node.first - 1, node.second.parent!!)
+                        headerItems.add(0,node)
+                    }
+                    while (headerItems.size > indent){
+                        headerItems.removeLast()
+                    }
                 }
-            }
 
 
-        }
-        Column(Modifier.fillMaxWidth().padding(end = LocalScrollbarStyle.current.thickness)
-            .align(Alignment.TopCenter).background(MaterialTheme.colorScheme.surface)
-        ) {
-            headerItems.forEach { item ->
-                Row(
-                    Modifier.fillMaxWidth()
-                        .clickable { onClick(item.second) }.drawBehind {
-                            repeat(item.first){
-                                drawRect(
-                                    Color.hsv(((it * 40)%360).toFloat() ,1f,0.5f),
-                                    topLeft = Offset(density.density * (it * 12 + 7),0f),
-                                    size = Size(density.density * 2,size.height)
-                                )
-                            }
-                        }.padding(start = (12*item.first).dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Image(Icons.chevronDown(), "null", modifier = Modifier.size(16.dp))
-                    content(item.second)
+            }
+            Column(Modifier.fillMaxWidth().padding(end = LocalScrollbarStyle.current.thickness)
+                .align(Alignment.TopCenter).background(MaterialTheme.colorScheme.surface)
+            ) {
+                headerItems.forEach { item ->
+                    Row(
+                        Modifier.fillMaxWidth().let { m ->
+                            onClick?.let { m.clickable{ it(item.second) } } ?: m
+                        }.drawBehind {
+                                repeat(item.first){
+                                    drawRect(
+                                        Color.hsv(((it * 40)%360).toFloat() ,1f,0.5f),
+                                        topLeft = Offset(density.density * (it * 12 + 7),0f),
+                                        size = Size(density.density * 2,size.height)
+                                    )
+                                }
+                            }.padding(start = (12*item.first).dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(Icons.chevronDown(), "null", modifier = Modifier.size(16.dp))
+                        content(item.second)
+                    }
                 }
             }
         }

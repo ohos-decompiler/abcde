@@ -1,13 +1,10 @@
 package me.yricky.abcde.page
 
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -15,9 +12,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -25,18 +24,22 @@ import me.yricky.abcde.AppState
 import me.yricky.abcde.HapSession
 import me.yricky.abcde.content.ModuleInfoContent
 import me.yricky.abcde.ui.*
-import me.yricky.oh.abcd.cfm.AbcField
-import me.yricky.oh.abcd.cfm.AbcMethod
-import me.yricky.oh.abcd.cfm.AbcClass
-import me.yricky.oh.abcd.cfm.isModuleRecordIdx
+import me.yricky.oh.abcd.cfm.*
 
-class ClassView(val classItem: AbcClass,override val hap:HapView? = null):AttachHapPage() {
-    override val navString: String = "${hap?.navString ?: ""}${asNavString("CLZ", classItem.name)}"
-    override val name: String = "${hap?.name?:""}/${classItem.abc.tag}/${classItem.name}"
+class ClassView(val classItem: AbcClass,override val hap:HapSession):AttachHapPage() {
+    override val navString: String = "${hap.hapView?.navString ?: ""}${asNavString("CLZ", classItem.name)}"
+    override val name: String = "${hap.hapView?.name?:""}/${classItem.abc.tag}/${classItem.name}"
+
+    private val sourceCodeString by lazy {
+        classItem.entryFunction()?.debugInfo?.state?.sourceCodeString
+    }
+
+    private val tabState = mutableIntStateOf(0)
+
     @OptIn(ExperimentalFoundationApi::class)
     @Composable
     override fun Page(modifier: Modifier, hapSession: HapSession, appState: AppState) {
-        VerticalTabAndContent(modifier, listOf(
+        VerticalTabAndContent(modifier, tabState, listOfNotNull(
             composeSelectContent{ _:Boolean ->
                 Image(classItem.icon(), null, Modifier.fillMaxSize(), colorFilter = grayColorFilter)
             } to composeContent{
@@ -87,7 +90,7 @@ class ClassView(val classItem: AbcClass,override val hap:HapView? = null):Attach
                                 SelectionContainer {
                                     Text(
                                         it.defineStr(),
-                                        maxLines = 1,
+//                                        maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                         fontFamily = FontFamily.Monospace,
                                         lineHeight = 0.sp
@@ -107,28 +110,83 @@ class ClassView(val classItem: AbcClass,override val hap:HapView? = null):Attach
                             }
                         }
                         items(filteredMethods) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.clearFocusWhenEnter(focus)
-                                    .fillMaxWidth().clickable { hapSession.openCode(hap,it) }
-                            ) {
-                                Image(it.icon(), null)
-                                it.codeItem?.let { c ->
-                                    Image(Icons.watch(), null)
+                            val scopeInfo = remember(it) { AbcMethod.ScopeInfo.parseFromMethod(it) }
+                            TooltipArea({
+                                scopeInfo?.let { i -> CompositionLocalProvider(LocalTextStyle provides codeStyle){
+                                    Surface(
+                                        shape = MaterialTheme.shapes.medium,
+                                        color = MaterialTheme.colorScheme.primaryContainer
+                                    ) {
+                                        Column(Modifier.padding(8.dp)) {
+                                            i.layers.forEachIndexed { i, sl ->
+                                                Text( " ".repeat(i) + "$sl")
+                                            }
+                                            Text(" ".repeat(i.layers.size) +
+                                                    AbcMethod.ScopeInfo.decorateMethodName(it.name.removeRange(i.origin),i.tag))
+                                        }
+                                    }
+
+                                }}
+                            }){
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.clearFocusWhenEnter(focus)
+                                        .fillMaxWidth().clickable { hapSession.openCode(it) }
+                                ) {
+                                    Image(it.icon(), null)
+                                    it.codeItem?.let { c ->
+                                        Image(Icons.watch(), null)
+                                    }
+
+                                    val funcName = remember(it.name) {
+                                        buildAnnotatedString {
+                                            append(it.name)
+                                            AbcMethod.ScopeInfo.scopeRegex.find(it.name)?.let {
+                                                it.groups[1]
+                                            }?.let { res ->
+                                                addStyle(SpanStyle(
+                                                    textDecoration = TextDecoration.Underline
+                                                ),res.range.first,res.range.last + 1)
+                                            }
+                                        }
+                                    }
+
+
+                                    Text(
+                                        funcName,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        fontFamily = FontFamily.Monospace,
+                                        lineHeight = 0.sp,
+                                    )
+                                    Text(
+                                        it.argsStr(),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        fontFamily = FontFamily.Monospace,
+                                        lineHeight = 0.sp,
+                                        modifier = Modifier.weight(1f)
+                                    )
                                 }
-                                Text(
-                                    it.defineStr(),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    fontFamily = FontFamily.Monospace,
-                                    lineHeight = 0.sp,
-                                    modifier = Modifier.weight(1f)
-                                )
                             }
                         }
                     }
                 }
-            }, composeSelectContent{ _:Boolean ->
+            },
+            sourceCodeString?.let {
+                composeSelectContent { _:Boolean ->
+                    Image(Icons.xml(), null, Modifier.fillMaxSize().alpha(0.5f), colorFilter = grayColorFilter)
+                } to composeContent {
+                    Column(
+                        Modifier.padding(horizontal = 8.dp).verticalScroll(rememberScrollState())
+                    ) {
+                        SelectionContainer {
+                            Text(it, style = codeStyle)
+                        }
+                    }
+                }
+            }
+            , composeSelectContent{ _:Boolean ->
                 Image(Icons.pkg(), null, Modifier.fillMaxSize().alpha(0.5f), colorFilter = grayColorFilter)
             } to composeContent{
                 ModuleInfoContent(Modifier.fillMaxSize(),classItem)

@@ -30,11 +30,11 @@
     }
   ],
   "min_version": "0.0.0.2",
-  "version": "12.0.6.0",
+  "version": "13.0.0.0",
   "api_version_map": [
     [
       0,
-      "12.0.6.0"
+      "13.0.0.0"
     ],
     [
       9,
@@ -51,6 +51,22 @@
     [
       12,
       "12.0.6.0"
+    ],
+    [
+      13,
+      "12.0.6.0"
+    ],
+    [
+      14,
+      "12.0.6.0"
+    ],
+    [
+      15,
+      "12.0.6.0"
+    ],
+    [
+      16,
+      "13.0.0.0"
     ]
   ],
   "incompatible_version": [
@@ -149,6 +165,18 @@
     {
       "tag": "eight_sixteen_bit_ic",
       "description": "The instruction occupies ic slots of both 8 and 16 bit width."
+    },
+    {
+      "tag": "conditional_throw",
+      "description": "The throw instruction can throw an excepton only if certain conditions are met."
+    },
+    {
+      "tag": "range_0",
+      "description": "Indicates that the instruction takes some consective registers as inputs. The start register of these consective inputs is the last register of the instruction. The number of consective inputs is the last immediate of the instruction."
+    },
+    {
+      "tag": "range_1",
+      "description": "Indicates that the instruction takes some consective registers as inputs. The start register of these consective inputs is the last register of the instruction. The number of consective inputs is the last immediate of the instruction plus 1."
     }
   ],
   "exceptions": [
@@ -342,7 +370,7 @@
       "last_throw_prefixed_opcode_idx": 9,
       "last_wide_prefixed_opcode_idx": 19,
       "last_deprecated_prefixed_opcode_idx": 46,
-      "last_callruntime_prefixed_opcode_idx": 24
+      "last_callruntime_prefixed_opcode_idx": 25
     }
   ],
   "prefixes": [
@@ -652,6 +680,7 @@
           ],
           "properties": [
             "ic_slot",
+            "two_slot",
             "eight_bit_ic"
           ]
         },
@@ -806,6 +835,9 @@
           ],
           "format": [
             "op_imm_8_v1_8_v2_8"
+          ],
+          "properties": [
+            "range_1"
           ]
         },
         {
@@ -817,7 +849,10 @@
           "format": [
             "pref_op_imm_16_v1_8_v2_8"
           ],
-          "prefix": "wide"
+          "prefix": "wide",
+          "properties": [
+            "range_1"
+          ]
         },
         {
           "sig": "createarraywithbuffer imm:u16, literalarray_id",
@@ -926,7 +961,8 @@
           "properties": [
             "ic_slot",
             "two_slot",
-            "eight_sixteen_bit_ic"
+            "eight_sixteen_bit_ic",
+            "range_0"
           ]
         },
         {
@@ -938,7 +974,10 @@
           "format": [
             "pref_op_imm_16_v_8"
           ],
-          "prefix": "wide"
+          "prefix": "wide",
+          "properties": [
+            "range_0"
+          ]
         },
         {
           "sig": "newlexenv imm:u8",
@@ -1840,6 +1879,7 @@
           "prefix": "callruntime",
           "properties": [
             "ic_slot",
+            "one_slot",
             "eight_bit_ic"
           ]
         },
@@ -1855,6 +1895,7 @@
           "prefix": "callruntime",
           "properties": [
             "ic_slot",
+            "one_slot",
             "eight_bit_ic"
           ]
         },
@@ -1899,6 +1940,17 @@
           ],
           "format": [
             "pref_op_imm_16"
+          ],
+          "prefix": "callruntime"
+        },
+        {
+          "sig": "callruntime.supercallforwardallargs v:in:top",
+          "acc": "out:top",
+          "opcode_idx": [
+            25
+          ],
+          "format": [
+            "pref_op_v_8"
           ],
           "prefix": "callruntime"
         }
@@ -1988,7 +2040,10 @@
           "format": [
             "pref_op_v_8"
           ],
-          "prefix": "throw"
+          "prefix": "throw",
+          "properties": [
+            "conditional_throw"
+          ]
         },
         {
           "sig": "throw.undefinedifhole v1:in:top, v2:in:top",
@@ -1999,7 +2054,10 @@
           "format": [
             "pref_op_v1_8_v2_8"
           ],
-          "prefix": "throw"
+          "prefix": "throw",
+          "properties": [
+            "conditional_throw"
+          ]
         },
         {
           "sig": "throw.ifsupernotcorrectcall imm:u16",
@@ -2012,7 +2070,10 @@
             "pref_op_imm_8",
             "pref_op_imm_16"
           ],
-          "prefix": "throw"
+          "prefix": "throw",
+          "properties": [
+            "conditional_throw"
+          ]
         },
         {
           "sig": "throw.undefinedifholewithname string_id",
@@ -2025,7 +2086,8 @@
           ],
           "prefix": "throw",
           "properties": [
-            "string_id"
+            "string_id",
+            "conditional_throw"
           ]
         }
       ]
@@ -2163,7 +2225,8 @@
           "properties": [
             "jit_ic_slot",
             "two_slot",
-            "eight_bit_ic"
+            "eight_bit_ic",
+            "range_0"
           ]
         },
         {
@@ -2175,7 +2238,10 @@
           "format": [
             "pref_op_imm_16_v_8"
           ],
-          "prefix": "wide"
+          "prefix": "wide",
+          "properties": [
+            "range_0"
+          ]
         },
         {
           "sig": "deprecated.callrange imm:u16, v:in:top",
@@ -2186,7 +2252,10 @@
           "format": [
             "pref_op_imm_16_v_8"
           ],
-          "prefix": "deprecated"
+          "prefix": "deprecated",
+          "properties": [
+            "range_0"
+          ]
         },
         {
           "sig": "supercallspread imm:u8, v:in:top",
@@ -2301,7 +2370,8 @@
           "properties": [
             "jit_ic_slot",
             "two_slot",
-            "eight_bit_ic"
+            "eight_bit_ic",
+            "range_0"
           ]
         },
         {
@@ -2313,7 +2383,10 @@
           "format": [
             "pref_op_imm_16_v_8"
           ],
-          "prefix": "wide"
+          "prefix": "wide",
+          "properties": [
+            "range_1"
+          ]
         },
         {
           "sig": "deprecated.callthisrange imm:u16, v:in:top",
@@ -2324,7 +2397,10 @@
           "format": [
             "pref_op_imm_16_v_8"
           ],
-          "prefix": "deprecated"
+          "prefix": "deprecated",
+          "properties": [
+            "range_1"
+          ]
         },
         {
           "sig": "supercallthisrange imm1:u8, imm2:u8, v:in:top",
@@ -2338,7 +2414,8 @@
           "properties": [
             "jit_ic_slot",
             "two_slot",
-            "eight_bit_ic"
+            "eight_bit_ic",
+            "range_0"
           ]
         },
         {
@@ -2350,7 +2427,10 @@
           "format": [
             "pref_op_imm_16_v_8"
           ],
-          "prefix": "wide"
+          "prefix": "wide",
+          "properties": [
+            "range_0"
+          ]
         },
         {
           "sig": "supercallarrowrange imm1:u8, imm2:u8, v:in:top",
@@ -2364,7 +2444,8 @@
           "properties": [
             "jit_ic_slot",
             "two_slot",
-            "eight_bit_ic"
+            "eight_bit_ic",
+            "range_0"
           ]
         },
         {
@@ -2376,7 +2457,10 @@
           "format": [
             "pref_op_imm_16_v_8"
           ],
-          "prefix": "wide"
+          "prefix": "wide",
+          "properties": [
+            "range_0"
+          ]
         }
       ]
     },

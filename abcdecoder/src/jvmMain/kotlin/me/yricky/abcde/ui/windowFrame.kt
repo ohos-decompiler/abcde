@@ -2,13 +2,11 @@ package me.yricky.abcde.ui
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.LocalScrollbarStyle
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.platform.LocalDensity
@@ -17,14 +15,11 @@ import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.rememberWindowState
-import me.yricky.abcde.desktop.DesktopUtils
-
+import me.yricky.abcde.LocalAppCommonConfig
 
 class ABCDEWindowScope(
     private val frameWindowScope: FrameWindowScope,
-    private val _cfg:State<DesktopUtils.AppConfig>
 ):FrameWindowScope by frameWindowScope{
-    val cfg by _cfg
 }
 @Composable
 fun ABCDEWindow(
@@ -58,25 +53,23 @@ fun ABCDEWindow(
         onPreviewKeyEvent,
         onKeyEvent
     ){
-        val cfg = DesktopUtils.AppConfig.flow.collectAsState()
-        val windowScope = remember(this) { ABCDEWindowScope(this,cfg) }
-        val density by remember { derivedStateOf { cfg.value.density } }
-        Crossfade(isDarkTheme()) { b ->
-            MaterialTheme(
-                colorScheme = if (b) darkColorScheme() else lightColorScheme(),
-            ) {
-                val bgColor = MaterialTheme.colorScheme.background
-                LaunchedEffect(null){
-                    window.background = java.awt.Color(bgColor.value.toInt())
-                }
-                CompositionLocalProvider(
-                    LocalScrollbarStyle provides LocalScrollbarStyle.current.copy(
-                        unhoverColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f),
-                        hoverColor = MaterialTheme.colorScheme.tertiary
-                    ),
-                    LocalDensity provides Density(density,1f)
+        CompositionLocalProvider(
+            LocalScrollbarStyle provides LocalScrollbarStyle.current.copy(
+                unhoverColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f),
+                hoverColor = MaterialTheme.colorScheme.tertiary
+            ),
+            LocalDensity provides Density(LocalAppCommonConfig.current.density,1f)
+        ){
+            val windowScope = remember(this) { ABCDEWindowScope(this) }
+            Crossfade(isDarkTheme()) { b ->
+                MaterialTheme(
+                    colorScheme = if (b) darkColorScheme() else lightColorScheme(),
                 ) {
-                    Box(Modifier.background(MaterialTheme.colorScheme.background)) {
+                    val bgColor = MaterialTheme.colorScheme.background
+                    LaunchedEffect(null){
+                        window.background = java.awt.Color(bgColor.value.toInt())
+                    }
+                    Surface(color = bgColor) {
                         windowScope.content()
                     }
                 }
